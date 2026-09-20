@@ -31,7 +31,7 @@ namespace
 
     struct FEndpointSnapshot
     {
-        uint16 SchemaVersion = 1;
+        uint16 SchemaVersion = 2;
         FString CaptureId;
         FString Endpoint;
         FString Role;
@@ -440,7 +440,7 @@ FGASNetTraceWorkspaceResult FGASNetTraceWorkspaceAnalyzer::AnalyzeFiles(const TA
             const FEndpointSnapshot& EA = Endpoints[A.Key]; const FEndpointSnapshot& EB = Endpoints[B.Key];
             return EA.Events[A.Value].Time + EA.ClockOffset < EB.Events[B.Value].Time + EB.ClockOffset;
         });
-        // A semantic key can legitimately repeat (and v1 often has a zero
+        // A semantic key can legitimately repeat (and a zero
         // PredictionKey). Split it into temporal activation episodes instead
         // of manufacturing one enormous causal chain.
         TArray<TArray<TPair<int32, int32>>> Episodes;

@@ -57,7 +57,7 @@ struct FGASNetTraceClockSample
 class GASNETTRACEANALYSIS_API FGASNetTraceProvider final : public TraceServices::IProvider
 {
 public:
-    void SetSession(uint16 InSchemaVersion, FString InCaptureId, FString InEndpointId, FString InRole);
+    void SetSession(FString InCaptureId, FString InEndpointId, FString InRole);
     void AppendEvent(FGASNetTraceAnalysisEvent&& Event);
     void AppendClockSample(const FGASNetTraceClockSample& Sample);
     void SetCoverage(uint64 ASCId, uint32 Mask, FString Path);
@@ -67,7 +67,7 @@ public:
     const FString& GetCaptureId() const { return CaptureId; }
     const FString& GetEndpointId() const { return EndpointId; }
     const FString& GetRole() const { return Role; }
-    uint16 GetSchemaVersion() const { return SchemaVersion; }
+    static constexpr uint16 GetSchemaVersion() { return 2; }
     const TArray<FGASNetTraceAnalysisEvent>& GetEvents() const { return Events; }
     const TArray<FGASNetTraceClockSample>& GetClockSamples() const { return ClockSamples; }
     const TMap<uint64, uint32>& GetCoverage() const { return Coverage; }
@@ -78,7 +78,6 @@ public:
     bool EstimateClock(double& OutOffset, double& OutUncertainty) const;
 
 private:
-    uint16 SchemaVersion = 1;
     FString CaptureId;
     FString EndpointId;
     FString Role;
@@ -88,7 +87,6 @@ private:
     TMap<uint64, FString> ASCPaths;
     TMap<uint64, FGASNetTraceObjectIdentity> ObjectIdentities;
     TArray<FGASNetTraceNetworkConfig> NetworkConfigs;
-    uint64 NextLegacyEventId = 1;
 };
 
 GASNETTRACEANALYSIS_API FName GetGASNetTraceProviderName();

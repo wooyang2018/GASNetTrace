@@ -26,7 +26,6 @@ namespace
             Context.InterfaceBuilder.RouteEvent(2, "GASNetTrace", "Coverage");
             Context.InterfaceBuilder.RouteEvent(3, "GASNetTrace", "Event");
             Context.InterfaceBuilder.RouteEvent(4, "GASNetTrace", "ClockSync");
-            Context.InterfaceBuilder.RouteEvent(5, "GASNetTrace", "EventV2");
             Context.InterfaceBuilder.RouteEvent(6, "GASNetTrace", "ObjectIdentity");
             Context.InterfaceBuilder.RouteEvent(7, "GASNetTrace", "NetworkConfig");
         }
@@ -41,7 +40,8 @@ namespace
                 Data.GetString("CaptureId", Capture);
                 Data.GetString("EndpointId", Endpoint);
                 Data.GetString("ProcessRole", Role);
-                Provider.SetSession(Data.GetValue<uint16>("SchemaVersion"), FString(Capture), FString(Endpoint), FString(Role));
+                if (Data.GetValue<uint16>("SchemaVersion") != 2) return true;
+                Provider.SetSession(FString(Capture), FString(Endpoint), FString(Role));
             }
             else if (RouteId == 2)
             {
@@ -49,20 +49,17 @@ namespace
                 Data.GetString("ASCPath", Path);
                 Provider.SetCoverage(Data.GetValue<uint64>("ASCId"), Data.GetValue<uint32>("CoverageMask"), FString(Path));
             }
-            else if (RouteId == 3 || RouteId == 5)
+            else if (RouteId == 3)
             {
                 FGASNetTraceAnalysisEvent Event;
-                Event.EventId = RouteId == 5 ? Data.GetValue<uint64>("EventId") : 0;
+                Event.EventId = Data.GetValue<uint64>("EventId");
                 const uint64 Timestamp = Data.GetValue<uint64>("Timestamp");
                 Event.Time = Context.EventTime.AsSeconds(Timestamp);
                 Event.ASCId = Data.GetValue<uint64>("ASCId");
                 Event.SubjectId = Data.GetValue<uint64>("SubjectId");
-                if (RouteId == 5)
-                {
-                    Event.OwnerId = Data.GetValue<uint64>("OwnerId");
-                    Event.AvatarId = Data.GetValue<uint64>("AvatarId");
-                    Event.ConnectionId = Data.GetValue<uint32>("ConnectionId");
-                }
+                Event.OwnerId = Data.GetValue<uint64>("OwnerId");
+                Event.AvatarId = Data.GetValue<uint64>("AvatarId");
+                Event.ConnectionId = Data.GetValue<uint32>("ConnectionId");
                 Event.Type = Data.GetValue<uint8>("Type");
                 Event.Flags = Data.GetValue<uint8>("Flags");
                 Event.AbilitySpecHandle = Data.GetValue<int32>("AbilitySpecHandle");
@@ -146,7 +143,7 @@ namespace
             if (!Provider) return;
             const TraceServices::INetProfilerProvider* NetProvider = TraceServices::ReadNetProfilerProvider(Session);
             TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
-            Root->SetStringField(TEXT("schema"), TEXT("gasnettrace.report.v1"));
+            Root->SetStringField(TEXT("schema"), TEXT("gasnettrace.report.v2"));
             Root->SetStringField(TEXT("captureId"), Provider->GetCaptureId());
             Root->SetStringField(TEXT("endpointId"), Provider->GetEndpointId());
             Root->SetNumberField(TEXT("eventCount"), Provider->GetEvents().Num());
@@ -238,13 +235,13 @@ namespace
     };
 }
 
-void FGASNetTraceProvider::SetSession(uint16 InSchemaVersion, FString InCaptureId, FString InEndpointId, FString InRole)
+void FGASNetTraceProvider::SetSession(FString InCaptureId, FString InEndpointId, FString InRole)
 {
-    SchemaVersion = InSchemaVersion; CaptureId = MoveTemp(InCaptureId); EndpointId = MoveTemp(InEndpointId); Role = MoveTemp(InRole);
+    CaptureId = MoveTemp(InCaptureId); EndpointId = MoveTemp(InEndpointId); Role = MoveTemp(InRole);
 }
 void FGASNetTraceProvider::AppendEvent(FGASNetTraceAnalysisEvent&& Event)
 {
-    if (Event.EventId == 0) Event.EventId = NextLegacyEventId++;
+    if (Event.EventId == 0) Event.EventId = static_cast<uint64>(Events.Num() + 1);
     Events.Add(MoveTemp(Event));
 }
 void FGASNetTraceProvider::AppendClockSample(const FGASNetTraceClockSample& Sample) { ClockSamples.Add(Sample); }

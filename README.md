@@ -38,7 +38,7 @@ For a reusable workspace, pass `-Workspace=D:\Traces\capture.gntworkspace` to ei
 
 ```json
 {
-  "schema": "gasnettrace.workspace.v1",
+  "schema": "gasnettrace.workspace.v2",
   "captureId": "optional-expected-capture-guid",
   "tracePaths": ["server.utrace", "client0.utrace", "client1.utrace"],
   "filters": {},

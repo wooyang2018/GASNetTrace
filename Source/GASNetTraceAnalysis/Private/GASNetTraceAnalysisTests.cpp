@@ -11,7 +11,7 @@
 
 namespace
 {
-    bool WriteGoldenTrace(const FString& Path, uint16 SchemaVersion, bool bImportantSession, bool bUnknownField)
+    bool WriteGoldenTrace(const FString& Path, bool bImportantSession, bool bUnknownField)
     {
         IFileManager::Get().MakeDirectory(*FPaths::GetPath(Path), true);
         UE::Trace::FFileOutDataStream Stream;
@@ -27,20 +27,16 @@ namespace
             .Field(ANSITEXTVIEW("EndpointId"), ETraceWriterFieldType::WideString)
             .Field(ANSITEXTVIEW("ProcessRole"), ETraceWriterFieldType::WideString).End();
 
-        auto& Declaration = Writer.DeclareEvent(ANSITEXTVIEW("GASNetTrace"),
-            SchemaVersion == 1 ? ANSITEXTVIEW("Event") : ANSITEXTVIEW("EventV2"));
-        if (SchemaVersion >= 2) Declaration.Field(ANSITEXTVIEW("EventId"), ETraceWriterFieldType::Uint64);
+        auto& Declaration = Writer.DeclareEvent(ANSITEXTVIEW("GASNetTrace"), ANSITEXTVIEW("Event"));
+        Declaration.Field(ANSITEXTVIEW("EventId"), ETraceWriterFieldType::Uint64);
         Declaration.Field(ANSITEXTVIEW("Timestamp"), ETraceWriterFieldType::Uint64)
             .Field(ANSITEXTVIEW("ASCId"), ETraceWriterFieldType::Uint64)
             .Field(ANSITEXTVIEW("SubjectId"), ETraceWriterFieldType::Uint64);
-        if (SchemaVersion >= 2)
-        {
-            Declaration.Field(ANSITEXTVIEW("OwnerId"), ETraceWriterFieldType::Uint64)
-                .Field(ANSITEXTVIEW("AvatarId"), ETraceWriterFieldType::Uint64);
-        }
+        Declaration.Field(ANSITEXTVIEW("OwnerId"), ETraceWriterFieldType::Uint64)
+            .Field(ANSITEXTVIEW("AvatarId"), ETraceWriterFieldType::Uint64);
         Declaration.Field(ANSITEXTVIEW("Type"), ETraceWriterFieldType::Uint8)
             .Field(ANSITEXTVIEW("Flags"), ETraceWriterFieldType::Uint8);
-        if (SchemaVersion >= 2) Declaration.Field(ANSITEXTVIEW("ConnectionId"), ETraceWriterFieldType::Uint32);
+        Declaration.Field(ANSITEXTVIEW("ConnectionId"), ETraceWriterFieldType::Uint32);
         Declaration.Field(ANSITEXTVIEW("AbilitySpecHandle"), ETraceWriterFieldType::Int32)
             .Field(ANSITEXTVIEW("PredictionCurrent"), ETraceWriterFieldType::Int32)
             .Field(ANSITEXTVIEW("PredictionBase"), ETraceWriterFieldType::Int32)
@@ -55,17 +51,17 @@ namespace
 
         // Event declarations are emitted on the writer's metadata thread, so restore the data thread.
         Writer.SetCurrentThread(GoldenThreadId);
-        Writer.WriteEvent(Session).Field(ANSITEXTVIEW("SchemaVersion"), SchemaVersion)
+        Writer.WriteEvent(Session).Field(ANSITEXTVIEW("SchemaVersion"), static_cast<uint16>(2))
             .Field(ANSITEXTVIEW("CaptureId"), TEXT("11111111-2222-3333-4444-555555555555"))
             .Field(ANSITEXTVIEW("EndpointId"), TEXT("Golden"))
             .Field(ANSITEXTVIEW("ProcessRole"), TEXT("Game")).End();
         auto& EventBuilder = Writer.WriteEvent(Event);
-        if (SchemaVersion >= 2) EventBuilder.Field(ANSITEXTVIEW("EventId"), static_cast<uint64>(9007199254740993ull));
+        EventBuilder.Field(ANSITEXTVIEW("EventId"), static_cast<uint64>(9007199254740993ull));
         EventBuilder.Field(ANSITEXTVIEW("Timestamp"), static_cast<uint64>(1))
             .Field(ANSITEXTVIEW("ASCId"), static_cast<uint64>(7)).Field(ANSITEXTVIEW("SubjectId"), static_cast<uint64>(8));
-        if (SchemaVersion >= 2) EventBuilder.Field(ANSITEXTVIEW("OwnerId"), static_cast<uint64>(9)).Field(ANSITEXTVIEW("AvatarId"), static_cast<uint64>(10));
+        EventBuilder.Field(ANSITEXTVIEW("OwnerId"), static_cast<uint64>(9)).Field(ANSITEXTVIEW("AvatarId"), static_cast<uint64>(10));
         EventBuilder.Field(ANSITEXTVIEW("Type"), static_cast<uint8>(13)).Field(ANSITEXTVIEW("Flags"), static_cast<uint8>(0));
-        if (SchemaVersion >= 2) EventBuilder.Field(ANSITEXTVIEW("ConnectionId"), static_cast<uint32>(1));
+        EventBuilder.Field(ANSITEXTVIEW("ConnectionId"), static_cast<uint32>(1));
         EventBuilder.Field(ANSITEXTVIEW("AbilitySpecHandle"), static_cast<int32>(17))
             .Field(ANSITEXTVIEW("PredictionCurrent"), static_cast<int32>(84)).Field(ANSITEXTVIEW("PredictionBase"), static_cast<int32>(81))
             .Field(ANSITEXTVIEW("PredictiveConnectionKey"), static_cast<uint64>(9007199254740995ull))
@@ -108,27 +104,22 @@ bool FGASNetTraceClockEstimateTest::RunTest(const FString&)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGASNetTraceSchemaCompatibilityTest,
-    "GASNetTrace.Analysis.SchemaV1V2Compatibility",
+    "GASNetTrace.Analysis.SchemaV2",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FGASNetTraceSchemaCompatibilityTest::RunTest(const FString&)
 {
-    FGASNetTraceProvider V1;
-    V1.SetSession(1, TEXT("capture"), TEXT("Client0"), TEXT("Game"));
-    V1.AppendEvent(FGASNetTraceAnalysisEvent{});
-    V1.AppendEvent(FGASNetTraceAnalysisEvent{});
-    TestEqual(TEXT("legacy schema retained"), V1.GetSchemaVersion(), static_cast<uint16>(1));
-    TestEqual(TEXT("v1 events receive stable monotonic IDs"), V1.GetEvents()[0].EventId, static_cast<uint64>(1));
-    TestEqual(TEXT("v1 second ID is monotonic"), V1.GetEvents()[1].EventId, static_cast<uint64>(2));
-
-    FGASNetTraceProvider V2;
-    V2.SetSession(2, TEXT("capture"), TEXT("Server"), TEXT("DedicatedServer"));
+    FGASNetTraceProvider Provider;
+    Provider.SetSession(TEXT("capture"), TEXT("Server"), TEXT("DedicatedServer"));
     FGASNetTraceAnalysisEvent Event; Event.EventId = 9007199254740993ull; Event.OwnerId = 7; Event.AvatarId = 8;
-    V2.AppendEvent(MoveTemp(Event));
+    Provider.AppendEvent(MoveTemp(Event));
+    Provider.AppendEvent(FGASNetTraceAnalysisEvent{});
+    TestEqual(TEXT("schema is v2"), Provider.GetSchemaVersion(), static_cast<uint16>(2));
+    TestEqual(TEXT("v2 event ID retained"), Provider.GetEvents()[0].EventId, 9007199254740993ull);
+    TestEqual(TEXT("missing ID receives a local monotonic value"), Provider.GetEvents()[1].EventId, static_cast<uint64>(2));
     FGASNetTraceObjectIdentity Identity; Identity.LocalObjectId = 8; Identity.Kind = 2; Identity.Confidence = 3; Identity.StableId = TEXT("iris:18446744073709551615");
-    V2.SetObjectIdentity(MoveTemp(Identity));
-    TestEqual(TEXT("v2 64-bit event ID retained"), V2.GetEvents()[0].EventId, 9007199254740993ull);
-    TestTrue(TEXT("v2 Iris identity retained"), V2.GetObjectIdentities().Contains(8));
+    Provider.SetObjectIdentity(MoveTemp(Identity));
+    TestTrue(TEXT("Iris identity retained"), Provider.GetObjectIdentities().Contains(8));
     return true;
 }
 
@@ -154,31 +145,27 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGASNetTraceGoldenFilesTest,
 bool FGASNetTraceGoldenFilesTest::RunTest(const FString&)
 {
     const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("GASNetTrace/GoldenTests"));
-    const FString V1Path = FPaths::Combine(Directory, TEXT("v1.utrace"));
-    const FString V2Path = FPaths::Combine(Directory, TEXT("v2-unknown-field.utrace"));
+    const FString GoldenPath = FPaths::Combine(Directory, TEXT("v2-unknown-field.utrace"));
     const FString LatePath = FPaths::Combine(Directory, TEXT("v2-non-important-session.utrace"));
     const FString EmptyPath = FPaths::Combine(Directory, TEXT("empty.utrace"));
     const FString DamagedPath = FPaths::Combine(Directory, TEXT("v2-damaged-tail.utrace"));
-    TestTrue(TEXT("write v1 golden"), WriteGoldenTrace(V1Path, 1, true, false));
-    TestTrue(TEXT("write v2 future-field golden"), WriteGoldenTrace(V2Path, 2, true, true));
-    TestTrue(TEXT("write missing Important metadata golden"), WriteGoldenTrace(LatePath, 2, false, false));
+    TestTrue(TEXT("write v2 future-field golden"), WriteGoldenTrace(GoldenPath, true, true));
+    TestTrue(TEXT("write missing Important metadata golden"), WriteGoldenTrace(LatePath, false, false));
     TestTrue(TEXT("write empty golden"), WriteEmptyTrace(EmptyPath));
-    TestTrue(TEXT("copy damaged-tail golden"), IFileManager::Get().Copy(*DamagedPath, *V2Path) == COPY_OK);
+    TestTrue(TEXT("copy damaged-tail golden"), IFileManager::Get().Copy(*DamagedPath, *GoldenPath) == COPY_OK);
     const uint8 DamagedTail[] = { 0xde, 0xad, 0xbe, 0xef, 0x47, 0x4e, 0x54 };
     TestTrue(TEXT("append damaged tail"), FFileHelper::SaveArrayToFile(MakeArrayView(DamagedTail), *DamagedPath, &IFileManager::Get(), FILEWRITE_Append));
-    const FGASNetTraceWorkspaceResult V1 = FGASNetTraceWorkspaceAnalyzer::AnalyzeFiles({ V1Path });
-    const FGASNetTraceWorkspaceResult V2 = FGASNetTraceWorkspaceAnalyzer::AnalyzeFiles({ V2Path });
+    const FGASNetTraceWorkspaceResult Golden = FGASNetTraceWorkspaceAnalyzer::AnalyzeFiles({ GoldenPath });
     const FGASNetTraceWorkspaceResult Late = FGASNetTraceWorkspaceAnalyzer::AnalyzeFiles({ LatePath });
     const FGASNetTraceWorkspaceResult Empty = FGASNetTraceWorkspaceAnalyzer::AnalyzeFiles({ EmptyPath });
     const FGASNetTraceWorkspaceResult Damaged = FGASNetTraceWorkspaceAnalyzer::AnalyzeFiles({ DamagedPath });
-    TestTrue(TEXT("v1 parses"), V1.bSucceeded);
-    TestTrue(TEXT("v2 ignores unknown field"), V2.bSucceeded);
+    TestTrue(TEXT("v2 ignores unknown field"), Golden.bSucceeded);
     TestTrue(TEXT("full-file analysis recovers non-Important session"), Late.bSucceeded);
     TestFalse(TEXT("empty trace has no usable GAS events"), Empty.bSucceeded);
     TestTrue(TEXT("valid GAS events survive damaged non-GAS tail"), Damaged.bSucceeded);
-    TestEqual(TEXT("stable report serialization"), V2.Json, FGASNetTraceWorkspaceAnalyzer::AnalyzeFiles({ V2Path }).Json);
+    TestEqual(TEXT("stable report serialization"), Golden.Json, FGASNetTraceWorkspaceAnalyzer::AnalyzeFiles({ GoldenPath }).Json);
     TSharedPtr<FJsonObject> Report;
-    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(V2.Json);
+    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Golden.Json);
     TestTrue(TEXT("v2 report is valid JSON"), FJsonSerializer::Deserialize(Reader, Report) && Report.IsValid());
     if (Report)
     {
