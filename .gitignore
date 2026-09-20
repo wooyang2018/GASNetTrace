@@ -1,0 +1,20 @@
+# Unreal Engine generated binaries and intermediates
+Binaries/
+Intermediate/
+Saved/
+
+# Viewer dependencies and generated output
+Viewer/node_modules/
+Viewer/dist/
+Viewer/test-results/
+Viewer/.playwright-cli/
+Viewer/tsconfig.tsbuildinfo
+
+# Local editor/OS files
+.vs/
+.idea/
+*.suo
+*.user
+*.userprefs
+Thumbs.db
+Desktop.ini

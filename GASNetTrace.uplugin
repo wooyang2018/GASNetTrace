@@ -1,0 +1,30 @@
+{
+  "FileVersion": 3,
+  "Version": 2,
+  "VersionName": "0.2.0",
+  "FriendlyName": "GAS Net Trace",
+  "Description": "Trace-native, dedicated-server-first causal diagnostics for the Gameplay Ability System.",
+  "Category": "Debugging",
+  "CreatedBy": "GAS Net Trace",
+  "CanContainContent": false,
+  "IsBetaVersion": true,
+  "SupportedTargetPlatforms": [ "Win64", "Linux", "Mac" ],
+  "Modules": [
+    {
+      "Name": "GASNetTraceRuntime",
+      "Type": "Runtime",
+      "LoadingPhase": "PreDefault"
+    },
+    {
+      "Name": "GASNetTraceAnalysis",
+      "Type": "DeveloperTool",
+      "LoadingPhase": "Default"
+    }
+  ],
+  "Plugins": [
+    {
+      "Name": "GameplayAbilities",
+      "Enabled": true
+    }
+  ]
+}

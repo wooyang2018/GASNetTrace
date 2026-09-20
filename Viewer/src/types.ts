@@ -1,0 +1,12 @@
+export type Endpoint={id:string;role:string;tracePath:string;schemaVersion:number;clockSynchronized:boolean;clockOffsetSeconds:number;clockUncertaintySeconds:number;netProfilerAvailable:boolean;eventCount:number}
+export type Coverage={endpoint:string;ascId:string;mask:number}
+export type TraceEvent={id:string;endpoint:string;role:string;type:string;typeId:number;lane:number;time:number;localTime:number;asc:string;subject:string;detail:string;spec:number;predictionCurrent:number;predictionBase:number;predictiveConnectionKey:string;connectionId:number;valueA:number;valueB:number;flags:number;timingReliable:boolean;clockUncertaintySeconds:number;networkEvidenceId?:string;networkConfidence?:number;networkMatchBasis?:string}
+export type TimelineEvent=TraceEvent&{timeMs:number;label:string;kind:string;status:'predicted'|'accepted'|'rejected'|'authority'|'network';ability:string;prediction:string;confidence:number;packet?:string}
+export type Diagnostic={id:string;severity:'error'|'warn'|'info';summary:string;evidenceId:string;confidence:number;definitive:boolean}
+export type NetworkEvidence={id:string;endpoint:string;connectionId:number;direction:'in'|'out';packetIndex:number;sequence:number;time:number;bytes:number;content:string[];relatedEventIds:string[]}
+export type ChainStage={eventId:string;endpoint:string;type:string;time:number}
+export type ChainEdge={sourceId:string;targetId:string;evidenceType:string;confidence:number;level:'exact'|'strong'|'weak'}
+export type CausalityChain={id:string;key:string;stages:ChainStage[];edges:ChainEdge[];complete:boolean}
+export type Workspace={schema:string;captureId:string;endpoints:Endpoint[];coverage:Coverage[];analysisWarnings:string[];thresholds:Record<string,number>}
+export type Page<T>={offset:number;limit:number;total:number;items:T[]}
+export type Metrics=Record<string,number|{count:number;p50Ms:number;p95Ms:number;maxMs:number}>
