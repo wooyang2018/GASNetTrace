@@ -14,10 +14,17 @@ const tokenMatches = value => {
   const a=Buffer.from(value||''), b=Buffer.from(token)
   return a.length===b.length && timingSafeEqual(a,b)
 }
+const cookieToken = header => {
+  const entry=(header||'').split(';').map(part=>part.trim()).find(part=>part.startsWith('gas_net_trace_token='))
+  if(!entry)return ''
+  try{return decodeURIComponent(entry.slice('gas_net_trace_token='.length))}catch{return ''}
+}
 
 createServer(async(req,res)=>{
   const url=new URL(req.url||'/',`http://127.0.0.1:${port}`)
-  if(!tokenMatches(url.searchParams.get('token')||req.headers['x-gas-net-trace-token'])){res.writeHead(401,{'content-type':'text/plain'});res.end('Invalid GAS Net Trace access token');return}
+  const queryToken=url.searchParams.get('token')
+  if(!tokenMatches(queryToken||req.headers['x-gas-net-trace-token']||cookieToken(req.headers.cookie))){res.writeHead(401,{'content-type':'text/plain'});res.end('Invalid GAS Net Trace access token');return}
+  if(queryToken&&tokenMatches(queryToken))res.setHeader('set-cookie',`gas_net_trace_token=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict`)
   if(url.pathname==='/api/health'){res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({ok:true,loopback:true,schema:'gasnettrace.service.v2'}));return}
   let relative=url.pathname==='/'?'index.html':url.pathname.slice(1), path=normalize(join(root,relative))
   if(!path.startsWith(root)){res.writeHead(403);res.end();return}
